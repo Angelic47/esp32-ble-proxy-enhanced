@@ -1,0 +1,133 @@
+esphome:
+  name: ble-proxy-wifi
+  friendly_name: BLE Proxy WiFi
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_key
+  on_client_connected:
+    - switch.turn_on: sw_led_net
+  on_client_disconnected:
+    - switch.turn_off: sw_led_net
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "BLEProxy Fallback AP"
+    password: "REPLACE_THIS"
+  # Wi-Fi 连接/断开时同步 WiFi LED（低电平点亮）
+  on_connect:
+    - switch.turn_on: sw_led_wifi
+  on_disconnect:
+    - switch.turn_off: sw_led_wifi
+
+# Captive portal for first-time setup
+captive_portal:
+
+output:
+  - platform: gpio
+    pin: { number: GPIO15, inverted: true }
+    id: led_ble
+  - platform: gpio
+    pin: { number: GPIO2,  inverted: true }
+    id: led_wifi
+  - platform: gpio
+    pin: { number: GPIO16, inverted: true }
+    id: led_net
+
+switch:
+  - platform: output
+    name: "WiFi LED"
+    id: sw_led_wifi
+    output: led_wifi
+    restore_mode: ALWAYS_OFF
+  - platform: output
+    name: "NET LED"
+    id: sw_led_net
+    output: led_net
+    restore_mode: ALWAYS_OFF
+
+binary_sensor:
+  - platform: gpio
+    id: btn1
+    name: "Button 1"
+    pin:
+      number: GPIO34
+      mode:
+        input: true
+        pullup: false
+    filters:
+      - delayed_on: 10ms
+      - delayed_off: 10ms
+    on_press:
+      - logger.log: "Button 1 pressed"
+
+globals:
+  - id: any_ble_conn
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  - id: last_adv_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+interval:
+  - interval: 250ms
+    then:
+      - lambda: |-
+          #ifdef USE_BLUETOOTH_PROXY
+          using esphome::bluetooth_proxy::global_bluetooth_proxy;
+          bool v = false;
+          if (global_bluetooth_proxy != nullptr) {
+            const int free  = global_bluetooth_proxy->get_bluetooth_connections_free();
+            const int limit = global_bluetooth_proxy->get_bluetooth_connections_limit();
+            v = (free < limit);
+          }
+          id(any_ble_conn) = v;
+          #endif
+  - interval: 25ms
+    then:
+      - lambda: |-
+          bool on = id(any_ble_conn);
+          if (!on) {
+            uint32_t now = millis();
+            uint32_t elapsed = now - id(last_adv_ms);
+            if (elapsed < 50) on = true;
+          }
+          if (on) {
+            id(led_ble).turn_on();
+          } else {
+            id(led_ble).turn_off();
+          }
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: true
+  on_ble_advertise:
+    then:
+      - lambda: |-
+          uint32_t now = millis();
+          if (now - id(last_adv_ms) > 5) {
+            id(last_adv_ms) = now;
+          }
+bluetooth_proxy:
+  active: true
+
+web_server:
+  port: 80
