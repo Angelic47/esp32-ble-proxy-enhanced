@@ -144,7 +144,7 @@ esp32-ble-proxy-enhanced/
 > 这些逻辑由 `globals + interval + on_ble_advertise` 驱动，确保效率高、无阻塞、状态反应快速 ✨
 
 
-## 常见问题（FAQ）
+## ❓ 常见问题（FAQ）
 
 - **Q：Wi-Fi 与以太网能否同时启用？**  
   A：不可以。
@@ -191,3 +191,4 @@ esp32-ble-proxy-enhanced/
 ## 🛠️ 开发与贡献
 欢迎任何形式的反馈、建议与贡献 💛  
 你可以通过 Issue 或 Pull Request 提交您的创意，我也会尽力给予及时的回应。
+
